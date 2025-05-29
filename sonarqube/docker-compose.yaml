@@ -1,0 +1,35 @@
+services:
+  sonarqube-server:
+    image: sonarqube:community
+    ports:
+      - "9000:9000"
+    environment:
+      - SONAR_JDBC_URL=jdbc:postgresql://postgresql:5432/sonarqube
+      - SONAR_JDBC_USERNAME=postgres
+      - SONAR_JDBC_PASSWORD=postgres
+    volumes:
+      - sonarqube-data:/opt/sonarqube/data
+      # - sonarqube-extensions:/opt/sonarqube/extensions
+      # - sonarqube_logs:/opt/sonarqube/logs
+    networks:
+      - sonarqube-network
+  postgresql:
+    image: postgres:17.2-bullseye
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=sonarqube
+    volumes:
+      - sonarqube-db:/var/lib/postgresql/data
+    networks:
+      - sonarqube-network
+
+networks:
+  sonarqube-network:
+    driver: bridge
+
+volumes:
+  sonarqube-data:
+  sonarqube-db:
