@@ -14,7 +14,7 @@ services:
     networks:
       - sonarqube-network
   postgresql:
-    image: postgres:17.2-bullseye
+    image: postgres:17.5-bookworm
     ports:
       - "5432:5432"
     environment:
