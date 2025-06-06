@@ -1,0 +1,134 @@
+services:
+  es1:
+    image: elasticsearch:9.0.2
+    container_name: es1
+    ports:
+      - 9200:9200
+    environment:
+      - node.name=es1
+      - cluster.name=es-cluster
+      - cluster.initial_master_nodes=es1,es2,es3
+      - discovery.seed_hosts=es2,es3
+      - bootstrap.memory_lock=true
+      - xpack.security.enabled=false
+    mem_limit: 1073741824
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    volumes:
+      - es1-data:/usr/share/elasticsearch/data
+    networks:
+      - elk-network
+  es2:
+    image: elasticsearch:9.0.2
+    container_name: es2
+    depends_on:
+      - es1
+    ports:
+      - 9201:9200
+    environment:
+      - node.name=es2
+      - cluster.name=es-cluster
+      - cluster.initial_master_nodes=es1,es2,es3
+      - discovery.seed_hosts=es1,es3
+      - bootstrap.memory_lock=true
+      - xpack.security.enabled=false
+    mem_limit: 1073741824
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9201"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    volumes:
+      - es2-data:/usr/share/elasticsearch/data
+    networks:
+      - elk-network
+  es3:
+    image: elasticsearch:9.0.2
+    container_name: es3
+    depends_on:
+      - es2
+    ports:
+      - 9202:9200
+    environment:
+      - node.name=es3
+      - cluster.name=es-cluster
+      - cluster.initial_master_nodes=es1,es2,es3
+      - discovery.seed_hosts=es1,es2
+      - bootstrap.memory_lock=true
+      - xpack.security.enabled=false
+    mem_limit: 1073741824
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9202"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    volumes:
+      - es3-data:/usr/share/elasticsearch/data
+    networks:
+      - elk-network
+  kibana:
+    image: kibana:9.0.2
+    container_name: kibana
+    depends_on:
+      - es1
+      - es2
+    ports:
+      - 5601:5601
+    environment:
+      - SERVERNAME=kibana
+      - ELASTICSEARCH_HOSTS=http://es1:9200
+    mem_limit: 1073741824
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5601"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - elk-network
+  logstash:
+    container_name: logstash
+    image: docker.elastic.co/logstash/logstash:9.0.2
+    ports:
+      - 5044:5044
+    environment:
+      - ELASTICSEARCH_HOSTS=http://es1:9200
+    volumes:
+      # - ./scripts/logstash/logstash.yml:/usr/share/logstash/config/logstash.yml
+      - ./scripts/logstash/pipeline/:/usr/share/logstash/pipeline
+    networks:
+      - elk-network
+    links:
+      - es1
+      - es2
+      - es3
+    depends_on:
+      - es1
+      - es2
+      - es3
+
+volumes:
+  es1-data:
+  es2-data:
+
+networks:
+  elk-network:
+    driver: bridge
