@@ -112,8 +112,8 @@ services:
     environment:
       - ELASTICSEARCH_HOSTS=http://es1:9200
     volumes:
-      - ./scripts/logstash/pipeline/:/usr/share/logstash/pipeline
-      - ./postgresql-42.7.6.jar:/usr/share/logstash/postgresql-42.7.6.jar
+      - ./scripts/logstash/pipeline/:/usr/share/logstash/pipeline:ro
+      - ./postgresql-42.7.6.jar:/usr/share/logstash/postgresql-42.7.6.jar:ro
       - ./last_run:/usr/share/logstash/last_run
     networks:
       - elk-network
@@ -125,6 +125,17 @@ services:
       - es1
       - es2
       - es3
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:9.0.2
+    container_name: filebeat
+    command: filebeat -e -d filebeat.yml -d "publish"
+    volumes:
+      - ./scripts/filebeat/filebeat.yaml:/usr/share/filebeat/filebeat.yaml:ro
+      - ./logs:/usr/share/filebeat/logs:ro
+    networks:
+      - elk-network
+    depends_on:
+      - logstash
 
 volumes:
   es1-data:
