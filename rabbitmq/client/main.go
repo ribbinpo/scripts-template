@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/wagslane/go-rabbitmq"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 func main() {
@@ -36,29 +36,38 @@ func main() {
 		os.Exit(1)
 	}
 
-	conn, err := rabbitmq.NewConn(
-		"amqp://myuser:mypassword@localhost:5672/",
-		rabbitmq.WithConnectionOptionsLogging,
-	)
-
+	// Connect to RabbitMQ
+	conn, err := amqp.Dial("amqp://myuser:mypassword@localhost:5672/")
 	if err != nil {
 		panic(err)
 	}
 	defer conn.Close()
 
+	// Create a channel
+	ch, err := conn.Channel()
+	if err != nil {
+		panic(err)
+	}
+	defer ch.Close()
+
+	// Set QoS to 1 to prefetch 1 message
+	if err := ch.Qos(1, 0, false); err != nil {
+		panic(err)
+	}
+
 	// Execute action based on flag
 	switch *action {
 	case "publish":
 		payload := &PublisherPayload{
-			Client:  conn,
+			Channel: ch,
 			Topic:   *topic,
 			Message: *message,
 		}
 		Publisher(payload)
 	case "subscribe":
 		payload := &SubscriberPayload{
-			Client: conn,
-			Topic:  *topic,
+			Channel: ch,
+			Topic:   *topic,
 		}
 		Subscriber(payload)
 	default:
