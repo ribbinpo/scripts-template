@@ -1,0 +1,7 @@
+# Allow myuser to read/write home/myuser/#
+user myuser
+topic readwrite home/myuser/#
+topic readwrite test
+
+# Allow read $SYS topics (monitoring)
+topic read $SYS/#

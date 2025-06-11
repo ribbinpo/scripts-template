@@ -1,0 +1,6 @@
+./emqx/
+
+# mosquitto
+mosquitto/data/*.db
+mosquitto/log/*.log
+mosquitto/init/password_file

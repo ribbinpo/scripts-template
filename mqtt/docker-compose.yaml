@@ -1,0 +1,25 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    container_name: mosquitto
+    depends_on:
+      - init-password
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+      - "8883:8883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - ./mosquitto/data/:/mosquitto/data
+      - ./mosquitto/log/:/mosquitto/log
+      - ./mosquitto/init/password_file:/mosquitto/config/password_file
+      - ./mosquitto/acl_file:/mosquitto/config/acl_file
+      # - ./mosquitto/certs:/etc/mosquitto/certs
+    restart: unless-stopped
+  init-password:
+    image: eclipse-mosquitto:latest
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "mosquitto_passwd -b -c /init/password_file myuser mypassword"
+    volumes:
+      - ./mosquitto/init:/init

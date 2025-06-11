@@ -1,0 +1,73 @@
+services:
+  emqx1:
+    image: emqx/emqx:5.0.1
+    container_name: emqx1
+    ports:
+      - "1883:1883"
+      - "8083:8083"
+      - "8084:8084"
+      - "8883:8883"
+      - "18083:18083"
+    environment:
+      - EMQX_NODE__NAME=emqx1@node1.emqx.io
+      - EMQX_CLUSTER__DISCOVERY=static
+      - EMQX_CLUSTER__STATIC__SEEDS=emqx2@node2.emqx.io,emqx3@node3.emqx.io
+    volumes:
+      - ./emqx/emqx1/emqx.conf:/opt/emqx/etc/emqx.conf
+      - ./emqx/emqx1/emqx.data:/opt/emqx/data
+      - ./emqx/emqx1/emqx.log:/opt/emqx/log
+      - ./emqx/emqx1/emqx.plugins:/opt/emqx/plugins
+      - ./emqx/emqx1/emqx.conf.d:/opt/emqx/conf.d
+      - ./emqx/emqx1/emqx.schema:/opt/emqx/schema
+    networks:
+      - mqtt-network
+
+  emqx2:
+    image: emqx/emqx:5.0.1
+    container_name: emqx2
+    ports:
+      - "1884:1883"
+      - "8085:8083"
+      - "8086:8084"
+      - "8884:8883"
+      - "18084:18083"
+    environment:
+      - EMQX_NODE__NAME=emqx2@node2.emqx.io
+      - EMQX_CLUSTER__DISCOVERY=static
+      - EMQX_CLUSTER__STATIC__SEEDS=emqx1@node1.emqx.io,emqx3@node3.emqx.io
+    volumes:
+      - ./emqx/emqx2/emqx.conf:/opt/emqx/etc/emqx.conf
+      - ./emqx/emqx2/emqx.data:/opt/emqx/data
+      - ./emqx/emqx2/emqx.log:/opt/emqx/log
+      - ./emqx/emqx2/emqx.plugins:/opt/emqx/plugins
+      - ./emqx/emqx2/emqx.conf.d:/opt/emqx/conf.d
+      - ./emqx/emqx2/emqx.schema:/opt/emqx/schema
+    networks:
+      - mqtt-network
+
+  emqx3:
+    image: emqx/emqx:5.0.1
+    container_name: emqx3
+    ports:
+      - "1885:1883"
+      - "8087:8083"
+      - "8088:8084"
+      - "8885:8883"
+      - "18085:18083"
+    environment:
+      - EMQX_NODE__NAME=emqx3@node3.emqx.io
+      - EMQX_CLUSTER__DISCOVERY=static
+      - EMQX_CLUSTER__STATIC__SEEDS=emqx1@node1.emqx.io,emqx2@node2.emqx.io
+    volumes:
+      - ./emqx/emqx3/emqx.conf:/opt/emqx/etc/emqx.conf
+      - ./emqx/emqx3/emqx.data:/opt/emqx/data
+      - ./emqx/emqx3/emqx.log:/opt/emqx/log
+      - ./emqx/emqx3/emqx.plugins:/opt/emqx/plugins
+      - ./emqx/emqx3/emqx.conf.d:/opt/emqx/conf.d
+      - ./emqx/emqx3/emqx.schema:/opt/emqx/schema
+    networks:
+      - mqtt-network
+
+networks:
+  mqtt-network:
+    driver: bridge
