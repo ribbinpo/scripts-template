@@ -74,6 +74,8 @@ func Subscriber(payload *SubscriberPayload) {
 		for d := range msgs {
 			log.Printf("consumed: %v", string(d.Body))
 			d.Ack(false)
+			// d.Nack(false, true) // requeue = true
+			// d.Reject(true) // requeue = true
 		}
 	}()
 
@@ -142,6 +144,8 @@ func SubscriberTopic(payload *SubscriberPayload) {
 		for d := range msgs {
 			log.Printf("consumed from topic exchange: %v", string(d.Body))
 			d.Ack(false)
+			// d.Nack(false, true) // requeue = true
+			// d.Reject(true) // requeue = true
 		}
 	}()
 
@@ -210,6 +214,8 @@ func SubscriberFanout(payload *SubscriberPayload) {
 		for d := range msgs {
 			log.Printf("consumed from fanout exchange: %v", string(d.Body))
 			d.Ack(false)
+			// d.Nack(false, true) // requeue = true
+			// d.Reject(true) // requeue = true
 		}
 	}()
 
