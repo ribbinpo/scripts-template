@@ -36,8 +36,9 @@ func Publisher(payload *PublisherPayload) {
 		false,         // mandatory
 		false,         // immediate
 		amqp.Publishing{
-			ContentType: "application/json",
-			Body:        []byte(payload.Message),
+			ContentType:  "application/json",
+			Body:         []byte(payload.Message),
+			DeliveryMode: amqp.Persistent, // 0: transient, 1: persistent
 		},
 	)
 	if err != nil {
@@ -70,8 +71,9 @@ func PublisherTopic(payload *PublisherPayload) {
 		false,         // mandatory
 		false,         // immediate
 		amqp.Publishing{
-			ContentType: "application/json",
-			Body:        []byte(payload.Message),
+			ContentType:  "application/json",
+			Body:         []byte(payload.Message),
+			DeliveryMode: amqp.Persistent, // 0: transient, 1: persistent
 		},
 	)
 	if err != nil {
@@ -104,8 +106,9 @@ func PublisherFanout(payload *PublisherPayload) {
 		false,         // mandatory
 		false,         // immediate
 		amqp.Publishing{
-			ContentType: "application/json",
-			Body:        []byte(payload.Message),
+			ContentType:  "application/json",
+			Body:         []byte(payload.Message),
+			DeliveryMode: amqp.Persistent, // 0: transient, 1: persistent
 		},
 	)
 	if err != nil {
