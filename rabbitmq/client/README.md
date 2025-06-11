@@ -33,25 +33,25 @@ The client supports two main actions: `publish` and `subscribe`.
 ### Publishing Messages
 
 ```bash
-go run main.go -action publish -topic <topic_name> -message <message>
+go run . -action publish -topic <topic_name> -message <message>
 ```
 
 Example:
 
 ```bash
-go run main.go -action publish -topic test -message "Hello, RabbitMQ!"
+go run . -action publish -topic test -message "Hello, RabbitMQ!"
 ```
 
 ### Subscribing to Messages
 
 ```bash
-go run main.go -action subscribe -topic <topic_name>
+go run . -action subscribe -topic <topic_name>
 ```
 
 Example:
 
 ```bash
-go run main.go -action subscribe -topic test
+go run . -action subscribe -topic test
 ```
 
 ## Exchange Types
