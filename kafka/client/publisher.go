@@ -28,7 +28,7 @@ func Publisher(payload *PublisherPayload) error {
 // High level API
 func ProduceMessage(payload *PublisherPayload) error {
 	w := &kafka.Writer{
-		Addr:                   kafka.TCP("localhost:9092", "localhost:9093", "localhost:9094"),
+		Addr:                   kafka.TCP("localhost:29092"),
 		Topic:                  payload.Topic,
 		Balancer:               &kafka.LeastBytes{},
 		AllowAutoTopicCreation: true,

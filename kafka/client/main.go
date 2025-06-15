@@ -38,17 +38,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Connect to Kafka
-	conn, err := kafka.DialLeader(context.Background(), "tcp", "localhost:9092", *topic, 0)
-	if err != nil {
-		panic(err)
-	}
-	conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
-	defer conn.Close()
-
 	// Execute action based on flag
 	switch *action {
 	case "publish":
+		// Connect to Kafka
+		conn, err := kafka.DialLeader(context.Background(), "tcp", "localhost:29092", *topic, 0)
+		if err != nil {
+			panic(err)
+		}
+		conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+		defer conn.Close()
 		payload := &PublisherPayload{
 			Channel: conn,
 			Message: *message,
@@ -56,11 +55,16 @@ func main() {
 		}
 		Publisher(payload)
 	case "subscribe":
+		subConn, err := kafka.DialLeader(context.Background(), "tcp", "localhost:29092", *topic, 0)
+		if err != nil {
+			panic(err)
+		}
+
 		payload := &SubscriberPayload{
-			Channel: conn,
+			Channel: subConn,
 			Topic:   *topic,
 		}
-		Subscriber(payload)
+		ConsumeMessage(payload)
 	default:
 		fmt.Printf("Error: Invalid action '%s'. Must be 'publish' or 'subscribe'\n", *action)
 		flag.Usage()

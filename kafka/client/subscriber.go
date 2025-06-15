@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
+	"time"
 
 	"github.com/segmentio/kafka-go"
 )
@@ -16,23 +18,35 @@ type SubscriberPayload struct {
 // Low level API
 func Subscriber(payload *SubscriberPayload) {
 	fmt.Printf("Subscribing to topic: %s\n", payload.Topic)
-	batch := payload.Channel.ReadBatch(10e3, 1e6)
-	defer batch.Close()
-
-	b := make([]byte, 10e3)
+	defer payload.Channel.Close()
+	// payload.Channel.Seek(0, kafka.SeekStart)
 	for {
-		n, err := batch.Read(b)
-		if err != nil {
-			break
+		buf := make([]byte, 1e3)
+		batch := payload.Channel.ReadBatch(10e3, 1e6)
+		if batch == nil {
+			log.Println("No batch available")
+			time.Sleep(1 * time.Second)
+			continue
 		}
-		fmt.Println(string(b[:n]))
+		for {
+			n, err := batch.Read(buf)
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+				log.Printf("read error: %v", err)
+				break
+			}
+			fmt.Printf("Message: %s\n", string(buf[:n]))
+		}
+		batch.Close()
 	}
 }
 
 // High level API - Consume Message
 func ConsumeMessage(payload *SubscriberPayload) {
 	r := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:   []string{"localhost:9092", "localhost:9093", "localhost:9094"},
+		Brokers:   []string{"localhost:29092"},
 		Topic:     payload.Topic,
 		Partition: 0,
 		MaxBytes:  10e6,
@@ -54,7 +68,7 @@ func ConsumeMessage(payload *SubscriberPayload) {
 // High level API - Consume Group Message
 func ConsumeGroupMessage(payload *SubscriberPayload) {
 	r := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:  []string{"localhost:9092", "localhost:9093", "localhost:9094"},
+		Brokers:  []string{"localhost:29092"},
 		Topic:    payload.Topic,
 		GroupID:  "my-group",
 		MaxBytes: 10e6,
@@ -79,7 +93,7 @@ func ConsumeMessageManual(payload *SubscriberPayload) {
 	defer cancel()
 
 	r := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:  []string{"localhost:9092", "localhost:9093", "localhost:9094"},
+		Brokers:  []string{"localhost:29092"},
 		Topic:    payload.Topic,
 		GroupID:  "my-group",
 		MaxBytes: 10e6,
