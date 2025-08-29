@@ -1,0 +1,63 @@
+// PROMTAIL EXAMPLE
+
+local.file_match "local_file" {
+  path_targets = [{
+    __address__ = "localhost",
+    __path__    = "/var/log/*.log",
+    job         = string.format("%s-logs", constants.hostname),
+  }]
+  sync_period = "5s"
+}
+
+loki.source.journal "journal" {
+  max_age       = "24h0m0s"
+  relabel_rules = discovery.relabel.journal.rules
+  forward_to    = [loki.write.default.receiver]
+  labels        = {component = string.format("%s-journal", constants.hostname)}
+  // NOTE: This is important to fix https://github.com/grafana/alloy/issues/924
+  path          = "/var/log/journal" 
+}
+
+discovery.relabel "journal" {
+  targets = []
+  rule {
+    source_labels = ["__journal__systemd_unit"]
+    target_label  = "unit"
+  }
+  rule {
+    source_labels = ["__journal__boot_id"]
+    target_label  = "boot_id"
+  }
+  rule {
+    source_labels = ["__journal__transport"]
+    target_label  = "transport"
+  }
+  rule {
+    source_labels = ["__journal_priority_keyword"]
+    target_label  = "level"
+  }
+}
+
+loki.source.file "log_scrape" {
+  targets               = local.file_match.local_file.targets
+  forward_to            = [loki.process.filter_logs.receiver]
+  tail_from_end         = true
+}
+
+loki.process "filter_logs" {
+  stage.drop {
+    source = ""
+    expression  = ".*Connection closed by authenticating user root"
+    drop_counter_reason = "noisy"
+  }
+  forward_to = [loki.write.grafana_loki.receiver]
+}
+
+// TARGETS
+
+loki.write "grafana_loki" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+  external_labels = {}
+}

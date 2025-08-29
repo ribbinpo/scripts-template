@@ -1,0 +1,80 @@
+services:
+  grafana:
+    image: docker.io/grafana/grafana:12.0.1
+    container_name: grafana
+    ports:
+      - 3000:3000
+    environment:
+      - GF_FEATURE_TOGGLES_ENABLE=grafanaManagedRecordingRules
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_BASIC_ENABLED=false
+    entrypoint:
+      - sh
+      - -euc
+      - |
+        mkdir -p /etc/grafana/provisioning/datasources
+        cat <<EOF > /etc/grafana/provisioning/datasources/ds.yaml
+        apiVersion: 1
+        datasources:
+        - name: Loki
+          type: loki
+          access: proxy
+          orgId: 1
+          url: 'http://loki:3100'
+          basicAuth: false
+          isDefault: true
+          version: 1
+          editable: true 
+        EOF
+        /run.sh
+    volumes:
+      - data_grafana:/var/lib/grafana
+    restart: unless-stopped
+    networks:
+      - lgtm-stack
+  loki:
+    container_name: loki
+    image: docker.io/grafana/loki:3.5.1
+    command: "-config.file=/etc/loki/config.yaml"
+    ports:
+      - 3100:3100
+    volumes:
+      - ./loki/config.yaml:/etc/loki/config.yaml
+      - data_loki:/loki:rw
+    restart: unless-stopped
+    networks:
+      - lgtm-stack
+  alloy:
+    image: grafana/alloy:v1.9.1
+    container_name: alloy
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    ports:
+      - 12345:12345
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy
+      - alloy_data:/var/lib/alloy/data
+      - /:/rootfs:ro
+      - /run:/run:ro
+      - /var/log:/var/log:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /run/udev/data:/run/udev/data:ro
+    networks:
+      - lgtm-stack
+
+volumes:
+  data_grafana:
+    driver: local
+  data_loki:
+    driver: local
+  alloy_data:
+    driver: local
+
+networks:
+  lgtm-stack:
+    driver: bridge
