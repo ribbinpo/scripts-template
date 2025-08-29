@@ -1,3 +1,20 @@
+otelcol.receiver.otlp "app_log" {
+  http { endpoint = "0.0.0.0:4318" }
+  output {
+    logs = [otelcol.processor.attributes.label_hints.input]
+  }
+}
+
+otelcol.processor.attributes "label_hints" {
+  action { key = "loki.attribute.labels" action = "insert" value = "severity, method, http.route" }
+  action { key = "loki.resource.labels"  action = "insert" value = "service.name, service.namespace, deployment.environment" }
+  output { logs = [otelcol.exporter.loki.to_loki.input] }
+}
+
+otelcol.exporter.loki "to_loki" {
+  forward_to = [loki.write.grafana_loki.receiver]
+}
+
 // PROMTAIL EXAMPLE
 
 local.file_match "local_file" {
@@ -7,35 +24,6 @@ local.file_match "local_file" {
     job         = string.format("%s-logs", constants.hostname),
   }]
   sync_period = "5s"
-}
-
-loki.source.journal "journal" {
-  max_age       = "24h0m0s"
-  relabel_rules = discovery.relabel.journal.rules
-  forward_to    = [loki.write.default.receiver]
-  labels        = {component = string.format("%s-journal", constants.hostname)}
-  // NOTE: This is important to fix https://github.com/grafana/alloy/issues/924
-  path          = "/var/log/journal" 
-}
-
-discovery.relabel "journal" {
-  targets = []
-  rule {
-    source_labels = ["__journal__systemd_unit"]
-    target_label  = "unit"
-  }
-  rule {
-    source_labels = ["__journal__boot_id"]
-    target_label  = "boot_id"
-  }
-  rule {
-    source_labels = ["__journal__transport"]
-    target_label  = "transport"
-  }
-  rule {
-    source_labels = ["__journal_priority_keyword"]
-    target_label  = "level"
-  }
 }
 
 loki.source.file "log_scrape" {

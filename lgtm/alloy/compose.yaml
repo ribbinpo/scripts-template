@@ -10,6 +10,7 @@ services:
       - /etc/alloy/config.alloy
     ports:
       - 12345:12345
+      - 4318:4318
     volumes:
       - ./config.alloy:/etc/alloy/config.alloy
       - alloy_data:/var/lib/alloy/data
@@ -20,11 +21,11 @@ services:
       - /var/lib/docker/:/var/lib/docker:ro
       - /run/udev/data:/run/udev/data:ro
     networks:
-      - lgtm_lgtm-stack
+      - lgtm-stack
 volumes:
   alloy_data:
     driver: local
 
 networks:
-  lgtm_lgtm-stack:
+  lgtm-stack:
     external: true
