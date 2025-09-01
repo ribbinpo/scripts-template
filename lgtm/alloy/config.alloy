@@ -6,8 +6,19 @@ otelcol.receiver.otlp "app_log" {
 }
 
 otelcol.processor.attributes "label_hints" {
-  action { key = "loki.attribute.labels" action = "insert" value = "severity, method, http.route" }
-  action { key = "loki.resource.labels"  action = "insert" value = "service.name, service.namespace, deployment.environment" }
+  action {
+    key    = "loki.attribute.labels"
+    action = "insert"
+    value  = "severity, method, http.route"
+  }
+
+  // Resource attributes -> labels (stable identifiers)
+  action {
+    key    = "loki.resource.labels"
+    action = "insert"
+    value  = "service.name, service.namespace, deployment.environment"
+  }
+  
   output { logs = [otelcol.exporter.loki.to_loki.input] }
 }
 
