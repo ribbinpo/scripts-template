@@ -1,3 +1,5 @@
+// SECTION: SYSTEM LOGS
+
 otelcol.receiver.otlp "app_log" {
   http { endpoint = "0.0.0.0:4318" }
   output {
@@ -59,4 +61,150 @@ loki.write "grafana_loki" {
     url = "http://loki:3100/loki/api/v1/push"
   }
   external_labels = {}
+}
+
+// SECTION: SYSTEM METRICS
+
+discovery.relabel "metrics" {
+  targets = prometheus.exporter.unix.metrics.targets
+  rule {
+    target_label = "instance"
+    replacement  = constants.hostname
+  }
+  rule {
+    target_label = "job"
+    replacement = string.format("%s-metrics", constants.hostname)
+  }
+}
+
+prometheus.exporter.unix "metrics" {
+  disable_collectors = ["ipvs", "btrfs", "infiniband", "xfs", "zfs"]
+  enable_collectors = ["meminfo"]
+  filesystem {
+    fs_types_exclude     = "^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|tmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs)$"
+    mount_points_exclude = "^/(dev|proc|run/credentials/.+|sys|var/lib/docker/.+)($|/)"
+    mount_timeout        = "5s"
+  }
+  netclass {
+    ignored_devices = "^(veth.*|cali.*|[a-f0-9]{15})$"
+  }
+  netdev {
+    device_exclude = "^(veth.*|cali.*|[a-f0-9]{15})$"
+  }
+}
+
+prometheus.scrape "metrics" {
+scrape_interval = "15s"
+  targets    = discovery.relabel.metrics.output
+  forward_to = [prometheus.remote_write.metrics.receiver]
+}
+
+
+prometheus.remote_write "metrics" {
+  endpoint {
+    url = "http://prometheus:9090/api/v1/write"
+  }
+}
+
+// SECTION: DOCKER METRICS
+
+prometheus.exporter.cadvisor "dockermetrics" {
+  docker_host = "unix:///var/run/docker.sock"
+  storage_duration = "5m"
+}
+
+discovery.relabel "docker_metrics" {
+  targets = prometheus.exporter.cadvisor.dockermetrics.targets
+  
+  // Add service name from container labels
+  rule {
+    source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_scrape"]
+    target_label  = "service"
+    replacement   = "docker"
+  }
+  
+  // Extract container name as service identifier
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    target_label  = "container_name"
+    regex         = "^/(.+)$"
+    replacement   = "$1"
+  }
+  
+  // Extract image name for service identification
+  rule {
+    source_labels = ["__meta_docker_container_image"]
+    target_label  = "image"
+    regex         = "^([^:]+)"
+    replacement   = "$1"
+  }
+  
+  // Extract service name from image (common patterns)
+  rule {
+    source_labels = ["__meta_docker_container_image"]
+    target_label  = "service_name"
+    regex         = "^([^/]+)/([^:]+)"
+    replacement   = "$2"
+  }
+  
+  // Add instance label
+  rule {
+    target_label = "instance"
+    replacement  = constants.hostname
+  }
+  
+  // Add job label
+  rule {
+    target_label = "job"
+    replacement  = "docker-metrics"
+  }
+  
+  // Add environment label based on container name
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    target_label  = "environment"
+    regex         = ".*(prod|staging|dev|test).*"
+    replacement   = "$1"
+  }
+}
+
+prometheus.scrape "dockermetrics" {
+  targets    = discovery.relabel.docker_metrics.output
+  forward_to = [ prometheus.remote_write.metrics.receiver ]
+  scrape_interval = "10s"
+}
+
+// SECTION: APPLICATION METRICS
+
+// Scrape metrics from your client application
+prometheus.scrape "client_app" {
+  targets = [{
+    __address__ = "client:3000",
+    __metrics_path__ = "/metrics",
+    service = "client-app"
+  }]
+  forward_to = [prometheus.remote_write.metrics.receiver]
+  scrape_interval = "15s"
+}
+
+// Scrape metrics from Grafana
+prometheus.scrape "grafana" {
+  targets = [{
+    __address__ = "grafana:3000",
+    __metrics_path__ = "/metrics",
+    service = "grafana"
+  }]
+  forward_to = [prometheus.remote_write.metrics.receiver]
+  scrape_interval = "30s"
+}
+
+// Scrape metrics from Prometheus itself
+prometheus.scrape "prometheus_self" {
+  targets = [{
+    __address__ = "prometheus:9090",
+    __metrics_path__ = "/metrics",
+    service = "prometheus"
+  }]
+  forward_to = [prometheus.remote_write.metrics.receiver]
+  scrape_interval = "30s"
 }
