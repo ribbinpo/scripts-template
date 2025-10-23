@@ -2,15 +2,16 @@ import { LoggerProvider } from "@opentelemetry/sdk-logs";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
 import { BatchLogRecordProcessor } from "@opentelemetry/sdk-logs";
 import { Resource } from "@opentelemetry/resources";
-// import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
 import { logs } from "@opentelemetry/api-logs";
+import { trace } from "@opentelemetry/api";
+import { hostname } from "os";
 
 // Configure the resource with service information
 const resource = new Resource({
   "service.name": process.env.SERVICE_NAME || "lgtm-client",
-  "service.version": process.env.SERVICE_VERSION || "1.0.0",
   "service.namespace": process.env.SERVICE_NAMESPACE || "lgtm-stack",
-  "deployment.environment": process.env.NODE_ENV || "development", // Add this
+  "deployment.environment": process.env.NODE_ENV || "development",
+  "host.name": hostname(),
 });
 
 // Configure the OTLP exporter to send logs to Alloy
@@ -59,8 +60,17 @@ loggerProvider.addLogRecordProcessor(
 // Register the logger provider globally
 logs.setGlobalLoggerProvider(loggerProvider);
 
+// Helper function to get current trace ID
+function getCurrentTraceId(): string | undefined {
+  const span = trace.getActiveSpan();
+  return span?.spanContext().traceId;
+}
+
 // Export the logger for use in the application
 export const otelLogger = loggerProvider.getLogger("lgtm-client", "1.0.0");
+
+// Export helper function for getting trace ID
+export { getCurrentTraceId };
 
 // Initialize telemetry
 export function initTelemetry() {

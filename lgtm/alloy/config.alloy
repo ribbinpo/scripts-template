@@ -181,7 +181,7 @@ prometheus.scrape "client_app" {
   targets = [{
     __address__ = "client:3000",
     __metrics_path__ = "/metrics",
-    service = "client-app"
+    service = "client-app",
   }]
   forward_to = [prometheus.remote_write.metrics.receiver]
   scrape_interval = "15s"
@@ -192,7 +192,7 @@ prometheus.scrape "grafana" {
   targets = [{
     __address__ = "grafana:3000",
     __metrics_path__ = "/metrics",
-    service = "grafana"
+    service = "grafana",
   }]
   forward_to = [prometheus.remote_write.metrics.receiver]
   scrape_interval = "30s"
@@ -203,7 +203,7 @@ prometheus.scrape "prometheus_self" {
   targets = [{
     __address__ = "prometheus:9090",
     __metrics_path__ = "/metrics",
-    service = "prometheus"
+    service = "prometheus",
   }]
   forward_to = [prometheus.remote_write.metrics.receiver]
   scrape_interval = "30s"
