@@ -1,8 +1,12 @@
 import { randomUUID } from "crypto";
-import { logHelper } from "./helper.js";
-import { NextFunction, Request, Response } from "express";
+import { logHelper } from "./helper";
+import express from "express";
 
-export function requestLogger(req: Request, res: Response, next: NextFunction) {
+export const requestLogger = (
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction
+) => {
   const requestId = randomUUID();
   (req as any).request_id = requestId;
 
@@ -29,4 +33,4 @@ export function requestLogger(req: Request, res: Response, next: NextFunction) {
   });
 
   next();
-}
+};

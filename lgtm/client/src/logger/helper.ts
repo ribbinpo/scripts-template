@@ -1,4 +1,4 @@
-import logger from "./index.js";
+import logger from "./index";
 
 /**
  * Core log builder for consistent fields
