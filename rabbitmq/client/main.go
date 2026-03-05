@@ -50,8 +50,11 @@ func main() {
 	}
 	defer ch.Close()
 
+	// Prefetch = max unacked messages per consumer
+	prefetch := 5
+
 	// Set QoS to 1 to prefetch 1 message
-	if err := ch.Qos(1, 0, false); err != nil {
+	if err := ch.Qos(prefetch, 0, false); err != nil {
 		panic(err)
 	}
 

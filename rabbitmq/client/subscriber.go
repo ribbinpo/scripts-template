@@ -7,6 +7,8 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
+// Main Queue -> DLX -> DLQ
+
 type SubscriberPayload struct {
 	Channel *amqp.Channel
 	Topic   string
@@ -16,28 +18,68 @@ type SubscriberPayload struct {
 func Subscriber(payload *SubscriberPayload) {
 	fmt.Printf("Subscribing to topic: %s\n", payload.Topic)
 
-	// Declare the exchange
-	err := payload.Channel.ExchangeDeclare(
-		payload.Topic, // name
-		"direct",      // type
-		true,          // durable
-		false,         // auto-deleted
-		false,         // internal
-		false,         // no-wait
-		nil,           // arguments
-	)
-	if err != nil {
+	// Declare the DLX exchange
+	if err := payload.Channel.ExchangeDeclare(
+		payload.Topic+".dlx", // name
+		"direct",             // type
+		true,                 // durable
+		false,                // auto-deleted
+		false,                // internal
+		false,                // no-wait
+		nil,                  // arguments
+	); err != nil {
 		panic(err)
 	}
 
-	// Declare the queue
+	// Declare the DLQ queue
+	if _, err := payload.Channel.QueueDeclare(
+		payload.Topic+".dlq", // name
+		true,                 // durable
+		false,                // delete when unused
+		false,                // exclusive
+		false,                // no-wait
+		nil,                  // arguments
+	); err != nil {
+		panic(err)
+	}
+
+	// Bind the DLQ queue to the DLX exchange
+	if err := payload.Channel.QueueBind(
+		payload.Topic+".dlq", // queue name
+		payload.Topic+".dlq", // routing key
+		payload.Topic+".dlx", // exchange
+		false,                // no-wait
+		nil,                  // arguments
+	); err != nil {
+		panic(err)
+	}
+
+	// Declare the main exchange
+	if err := payload.Channel.ExchangeDeclare(
+		payload.Topic+".exchange", // name
+		"direct",                  // type
+		true,                      // durable
+		false,                     // auto-deleted
+		false,                     // internal
+		false,                     // no-wait
+		nil,                       // arguments
+	); err != nil {
+		panic(err)
+	}
+
+	args := amqp.Table{
+		"x-dead-letter-exchange":    payload.Topic + ".dlx",
+		"x-dead-letter-routing-key": payload.Topic + ".dlq",
+	}
+
+	// Declare the main queue
 	q, err := payload.Channel.QueueDeclare(
-		payload.Topic+"_queue", // name
+		payload.Topic+".queue", // name
 		true,                   // durable
 		false,                  // delete when unused
 		false,                  // exclusive
 		false,                  // no-wait
-		nil,                    // arguments
+		args,                   // arguments
 	)
 	if err != nil {
 		panic(err)
@@ -45,24 +87,24 @@ func Subscriber(payload *SubscriberPayload) {
 
 	// Bind the queue to the exchange
 	if err := payload.Channel.QueueBind(
-		q.Name,        // queue name
-		payload.Topic, // routing key
-		payload.Topic, // exchange
-		false,         // no-wait
-		nil,           // arguments
+		q.Name,                    // queue name
+		payload.Topic,             // routing key
+		payload.Topic+".exchange", // exchange
+		false,                     // no-wait
+		nil,                       // arguments
 	); err != nil {
 		panic(err)
 	}
 
 	// Consume messages
 	msgs, err := payload.Channel.Consume(
-		q.Name, // queue
-		"",     // consumer
-		false,  // auto-ack = false → manual ack
-		false,  // exclusive
-		false,  // no-local
-		false,  // no-wait
-		nil,    // args
+		q.Name,     // queue
+		"worker-1", // consumer tag
+		false,      // auto-ack = false → manual ack
+		false,      // exclusive
+		false,      // no-local
+		false,      // no-wait
+		nil,        // args
 	)
 	if err != nil {
 		panic(err)
