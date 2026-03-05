@@ -1,0 +1,91 @@
+services:
+  rabbit1:
+    image: rabbitmq:3.13-management
+    hostname: rabbit1
+    container_name: rabbit1
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_ERLANG_COOKIE: "MY_SUPER_SECRET_COOKIE"
+      RABBITMQ_NODENAME: rabbit@rabbit1
+      RABBITMQ_USE_LONGNAME: "false"
+    volumes:
+      - rabbit1_data:/var/lib/rabbitmq
+      - ./config/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+    networks: [rabbitnet]
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  rabbit2:
+    image: rabbitmq:3.13-management
+    hostname: rabbit2
+    container_name: rabbit2
+    environment:
+      RABBITMQ_ERLANG_COOKIE: "MY_SUPER_SECRET_COOKIE"
+      RABBITMQ_NODENAME: rabbit@rabbit2
+      RABBITMQ_USE_LONGNAME: "false"
+    volumes:
+      - rabbit2_data:/var/lib/rabbitmq
+      - ./config/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+    networks: [rabbitnet]
+    ports:
+      - "5673:5672"
+      - "15673:15672"
+    depends_on:
+      rabbit1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  rabbit3:
+    image: rabbitmq:3.13-management
+    hostname: rabbit3
+    container_name: rabbit3
+    environment:
+      RABBITMQ_ERLANG_COOKIE: "MY_SUPER_SECRET_COOKIE"
+      RABBITMQ_NODENAME: rabbit@rabbit3
+      RABBITMQ_USE_LONGNAME: "false"
+    volumes:
+      - rabbit3_data:/var/lib/rabbitmq
+      - ./config/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+    networks: [rabbitnet]
+    ports:
+      - "5674:5672"
+      - "15674:15672"
+    depends_on:
+      rabbit1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: rabbitmq-lb
+    ports:
+      - "5672:5672" # AMQP via LB
+      - "15672:15672" # Management UI via LB
+    volumes:
+      - ./config/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks: [rabbitnet]
+    depends_on: [rabbit1, rabbit2, rabbit3]
+
+networks:
+  rabbitnet:
+    name: rabbitnet
+
+volumes:
+  rabbit1_data:
+  rabbit2_data:
+  rabbit3_data:

@@ -36,8 +36,10 @@ func main() {
 		os.Exit(1)
 	}
 
+	node := "amqp://myuser:mypassword@localhost:5672/"
+
 	// Connect to RabbitMQ
-	conn, err := amqp.Dial("amqp://myuser:mypassword@localhost:5672/")
+	conn, err := amqp.Dial(node)
 	if err != nil {
 		panic(err)
 	}
