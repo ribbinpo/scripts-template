@@ -5,6 +5,8 @@ import (
 	"log"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+
+	"github.com/ribbinpo/scripts-template/rabbitmq/client/util"
 )
 
 // Main Queue -> DLX -> DLQ
@@ -18,68 +20,74 @@ type SubscriberPayload struct {
 func Subscriber(payload *SubscriberPayload) {
 	fmt.Printf("Subscribing to topic: %s\n", payload.Topic)
 
+	dlxExchange := util.GetExchangeName(payload.Topic, util.DLX)
+	dlqName := util.GetQueueName(payload.Topic, "main", util.DLQ)
+	mainExchange := util.GetExchangeName(payload.Topic, util.Events)
+	mainQueueName := util.GetQueueName(payload.Topic, "main", util.NormalQueue)
+	routingKey := mainQueueName
+
 	// Declare the DLX exchange
 	if err := payload.Channel.ExchangeDeclare(
-		payload.Topic+".dlx", // name
-		"direct",             // type
-		true,                 // durable
-		false,                // auto-deleted
-		false,                // internal
-		false,                // no-wait
-		nil,                  // arguments
+		dlxExchange, // name
+		"direct",    // type
+		true,        // durable
+		false,      // auto-deleted
+		false,      // internal
+		false,      // no-wait
+		nil,        // arguments
 	); err != nil {
 		panic(err)
 	}
 
 	// Declare the DLQ queue
 	if _, err := payload.Channel.QueueDeclare(
-		payload.Topic+".dlq", // name
-		true,                 // durable
-		false,                // delete when unused
-		false,                // exclusive
-		false,                // no-wait
-		nil,                  // arguments
+		dlqName, // name
+		true,    // durable
+		false,   // delete when unused
+		false,   // exclusive
+		false,   // no-wait
+		nil,     // arguments
 	); err != nil {
 		panic(err)
 	}
 
 	// Bind the DLQ queue to the DLX exchange
 	if err := payload.Channel.QueueBind(
-		payload.Topic+".dlq", // queue name
-		payload.Topic+".dlq", // routing key
-		payload.Topic+".dlx", // exchange
-		false,                // no-wait
-		nil,                  // arguments
+		dlqName,     // queue name
+		dlqName,     // routing key
+		dlxExchange, // exchange
+		false,       // no-wait
+		nil,         // arguments
 	); err != nil {
 		panic(err)
 	}
 
 	// Declare the main exchange
 	if err := payload.Channel.ExchangeDeclare(
-		payload.Topic+".exchange", // name
-		"direct",                  // type
-		true,                      // durable
-		false,                     // auto-deleted
-		false,                     // internal
-		false,                     // no-wait
-		nil,                       // arguments
+		mainExchange, // name
+		"direct",     // type
+		true,         // durable
+		false,        // auto-deleted
+		false,        // internal
+		false,        // no-wait
+		nil,          // arguments
 	); err != nil {
 		panic(err)
 	}
 
 	args := amqp.Table{
-		"x-dead-letter-exchange":    payload.Topic + ".dlx",
-		"x-dead-letter-routing-key": payload.Topic + ".dlq",
+		"x-dead-letter-exchange":    dlxExchange,
+		"x-dead-letter-routing-key": dlqName,
 	}
 
 	// Declare the main queue
 	q, err := payload.Channel.QueueDeclare(
-		payload.Topic+".queue", // name
-		true,                   // durable
-		false,                  // delete when unused
-		false,                  // exclusive
-		false,                  // no-wait
-		args,                   // arguments
+		mainQueueName, // name
+		true,          // durable
+		false,         // delete when unused
+		false,         // exclusive
+		false,         // no-wait
+		args,          // arguments
 	)
 	if err != nil {
 		panic(err)
@@ -87,11 +95,11 @@ func Subscriber(payload *SubscriberPayload) {
 
 	// Bind the queue to the exchange
 	if err := payload.Channel.QueueBind(
-		q.Name,                    // queue name
-		payload.Topic,             // routing key
-		payload.Topic+".exchange", // exchange
-		false,                     // no-wait
-		nil,                       // arguments
+		q.Name,        // queue name
+		routingKey,    // routing key
+		mainExchange,  // exchange
+		false,         // no-wait
+		nil,           // arguments
 	); err != nil {
 		panic(err)
 	}
@@ -129,27 +137,31 @@ func Subscriber(payload *SubscriberPayload) {
 func SubscriberTopic(payload *SubscriberPayload) {
 	fmt.Printf("Subscribing to topic exchange: %s\n", payload.Topic)
 
+	exchange := util.GetExchangeName(payload.Topic, util.Events)
+	queueName := util.GetQueueName(payload.Topic, "main", util.NormalQueue)
+	routingKey := queueName
+
 	// Declare the exchange
 	if err := payload.Channel.ExchangeDeclare(
-		payload.Topic, // name
-		"topic",       // type
-		true,          // durable
-		false,         // auto-deleted
-		false,         // internal
-		false,         // no-wait
-		nil,           // arguments
+		exchange, // name
+		"topic",  // type
+		true,     // durable
+		false,    // auto-deleted
+		false,    // internal
+		false,    // no-wait
+		nil,      // arguments
 	); err != nil {
 		panic(err)
 	}
 
 	// Declare the queue
 	q, err := payload.Channel.QueueDeclare(
-		payload.Topic+"_queue", // name
-		true,                   // durable
-		false,                  // delete when unused
-		false,                  // exclusive
-		false,                  // no-wait
-		nil,                    // arguments
+		queueName, // name
+		true,      // durable
+		false,     // delete when unused
+		false,     // exclusive
+		false,     // no-wait
+		nil,       // arguments
 	)
 	if err != nil {
 		panic(err)
@@ -157,11 +169,11 @@ func SubscriberTopic(payload *SubscriberPayload) {
 
 	// Bind the queue to the exchange
 	if err := payload.Channel.QueueBind(
-		q.Name,        // queue name
-		payload.Topic, // routing key
-		payload.Topic, // exchange
-		false,         // no-wait
-		nil,           // arguments
+		q.Name,      // queue name
+		routingKey,  // routing key
+		exchange,    // exchange
+		false,       // no-wait
+		nil,         // arguments
 	); err != nil {
 		panic(err)
 	}
@@ -199,15 +211,17 @@ func SubscriberTopic(payload *SubscriberPayload) {
 func SubscriberFanout(payload *SubscriberPayload) {
 	fmt.Printf("Subscribing to fanout exchange: %s\n", payload.Topic)
 
+	exchange := util.GetExchangeName(payload.Topic, util.Events)
+
 	// Declare the exchange
 	if err := payload.Channel.ExchangeDeclare(
-		payload.Topic, // name
-		"fanout",      // type
-		true,          // durable
-		false,         // auto-deleted
-		false,         // internal
-		false,         // no-wait
-		nil,           // arguments
+		exchange, // name
+		"fanout", // type
+		true,     // durable
+		false,    // auto-deleted
+		false,    // internal
+		false,    // no-wait
+		nil,      // arguments
 	); err != nil {
 		panic(err)
 	}
@@ -227,11 +241,11 @@ func SubscriberFanout(payload *SubscriberPayload) {
 
 	// Bind the queue to the exchange
 	if err := payload.Channel.QueueBind(
-		q.Name,        // queue name
-		"",            // routing key (empty for fanout)
-		payload.Topic, // exchange
-		false,         // no-wait
-		nil,           // arguments
+		q.Name,   // queue name
+		"",       // routing key (empty for fanout)
+		exchange, // exchange
+		false,    // no-wait
+		nil,      // arguments
 	); err != nil {
 		panic(err)
 	}

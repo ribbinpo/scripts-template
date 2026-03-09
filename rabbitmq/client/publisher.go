@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+
+	"github.com/ribbinpo/scripts-template/rabbitmq/client/util"
 )
 
 type PublisherPayload struct {
@@ -15,24 +17,26 @@ type PublisherPayload struct {
 
 // Method 1: direct exchange
 func Publisher(payload *PublisherPayload) {
+	exchange := util.GetExchangeName(payload.Topic, util.Events)
 	err := payload.Channel.ExchangeDeclare(
-		payload.Topic, // name
-		"direct",      // type
-		true,          // durable
-		false,         // auto-deleted
-		false,         // internal
-		false,         // no-wait
-		nil,           // arguments
+		exchange, // name
+		"direct", // type
+		true,    // durable
+		false,   // auto-deleted
+		false,   // internal
+		false,   // no-wait
+		nil,     // arguments
 	)
 	if err != nil {
 		panic(err)
 	}
 
 	// Publish the message
+	routingKey := util.GetQueueName(payload.Topic, "main", util.NormalQueue)
 	err = payload.Channel.PublishWithContext(
 		context.Background(),
-		payload.Topic, // exchange
-		payload.Topic, // routing key
+		exchange, // exchange
+		routingKey, // routing key
 		false,         // mandatory
 		false,         // immediate
 		amqp.Publishing{
@@ -50,24 +54,26 @@ func Publisher(payload *PublisherPayload) {
 
 // Method 2: topic exchange
 func PublisherTopic(payload *PublisherPayload) {
+	exchange := util.GetExchangeName(payload.Topic, util.Events)
 	err := payload.Channel.ExchangeDeclare(
-		payload.Topic, // name
-		"topic",       // type
-		true,          // durable
-		false,         // auto-deleted
-		false,         // internal
-		false,         // no-wait
-		nil,           // arguments
+		exchange, // name
+		"topic",  // type
+		true,     // durable
+		false,    // auto-deleted
+		false,    // internal
+		false,    // no-wait
+		nil,      // arguments
 	)
 	if err != nil {
 		panic(err)
 	}
 
 	// Publish the message
+	routingKey := util.GetQueueName(payload.Topic, "main", util.NormalQueue)
 	err = payload.Channel.PublishWithContext(
 		context.Background(),
-		payload.Topic, // exchange
-		payload.Topic, // routing key
+		exchange,    // exchange
+		routingKey,  // routing key
 		false,         // mandatory
 		false,         // immediate
 		amqp.Publishing{
@@ -85,9 +91,10 @@ func PublisherTopic(payload *PublisherPayload) {
 
 // Method 3: fanout exchange
 func PublisherFanout(payload *PublisherPayload) {
+	exchange := util.GetExchangeName(payload.Topic, util.Events)
 	err := payload.Channel.ExchangeDeclare(
-		payload.Topic, // name
-		"fanout",      // type
+		exchange, // name
+		"fanout", // type
 		true,          // durable
 		false,         // auto-deleted
 		false,         // internal
@@ -101,8 +108,8 @@ func PublisherFanout(payload *PublisherPayload) {
 	// Publish the message
 	err = payload.Channel.PublishWithContext(
 		context.Background(),
-		payload.Topic, // exchange
-		"",            // routing key (empty for fanout)
+		exchange, // exchange
+		"",       // routing key (empty for fanout)
 		false,         // mandatory
 		false,         // immediate
 		amqp.Publishing{

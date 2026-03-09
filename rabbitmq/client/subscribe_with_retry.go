@@ -7,9 +7,11 @@ import (
 	"math"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+
+	"github.com/ribbinpo/scripts-template/rabbitmq/client/util"
 )
 
-func ProcessWithRetry(d amqp.Delivery, ch *amqp.Channel) {
+func ProcessWithRetry(service string, d amqp.Delivery, ch *amqp.Channel) {
 	maxRetries := 3
 
 	retries := getRetryCount(d)
@@ -24,10 +26,12 @@ func ProcessWithRetry(d amqp.Delivery, ch *amqp.Channel) {
 	if retries >= maxRetries {
 		totalAttempts := retries + 1
 		log.Printf("Moving to DLQ after %d attempts", totalAttempts)
+		dlxExchange := util.GetExchangeName(service, util.DLX)
+		dlqName := util.GetQueueName(service, "main", util.DLQ)
 		if pubErr := ch.PublishWithContext(
 			context.Background(),
-			"dlx",
-			"dead",
+			dlxExchange,
+			dlqName,
 			false,
 			false,
 			amqp.Publishing{
@@ -45,9 +49,10 @@ func ProcessWithRetry(d amqp.Delivery, ch *amqp.Channel) {
 
 		log.Printf("Retrying message after (%d/%d) attempts in %dms", retries+1, maxRetries+1, delayDuration)
 
+		retryExchange := util.GetExchangeName(service, util.Retry)
 		if pubErr := ch.PublishWithContext(
 			context.Background(),
-			"retry",
+			retryExchange,
 			d.RoutingKey,
 			false,
 			false,
