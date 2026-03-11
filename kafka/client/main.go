@@ -12,7 +12,7 @@ import (
 
 func main() {
 	// Define command line flags
-	action := flag.String("action", "", "Action to perform (publish/subscribe)")
+	action := flag.String("action", "", "Action to perform (publish/subscribe/subscribe-dlq/subscribe-retry-dlq)")
 	topic := flag.String("topic", "", "MQTT topic")
 	message := flag.String("message", "", "Message to publish")
 
@@ -65,8 +65,14 @@ func main() {
 			Topic:   *topic,
 		}
 		ConsumeMessage(payload)
+	case "subscribe-dlq":
+		payload := &SubscriberPayload{Topic: *topic}
+		ConsumeDLQ(payload)
+	case "subscribe-retry-dlq":
+		payload := &SubscriberPayload{Topic: *topic}
+		ConsumeWithDLQ(payload)
 	default:
-		fmt.Printf("Error: Invalid action '%s'. Must be 'publish' or 'subscribe'\n", *action)
+		fmt.Printf("Error: Invalid action '%s'. Must be 'publish', 'subscribe', 'subscribe-dlq', or 'subscribe-retry-dlq'\n", *action)
 		flag.Usage()
 		os.Exit(1)
 	}

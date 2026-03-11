@@ -122,3 +122,39 @@ func ConsumeMessageManual(payload *SubscriberPayload) {
 		}
 	}
 }
+
+// ConsumeWithDLQ starts the retry + DLQ consumer for the given topic.
+// Uses queue naming: {topic}-retry, {topic}-dlq
+func ConsumeWithDLQ(payload *SubscriberPayload) {
+	cfg := DefaultRetryConfig()
+	process := func(ctx context.Context, m kafka.Message) error {
+		fmt.Printf("message at offset %d: %s = %s\n", m.Offset, string(m.Key), string(m.Value))
+		// Return error to simulate failure and trigger retry/DLQ flow
+		// Replace with your actual processing logic
+		return nil
+	}
+	ConsumeWithRetryAndDLQ(payload.Topic, cfg, process)
+}
+
+// ConsumeDLQ reads messages from the Dead Letter Queue for inspection/reprocessing
+func ConsumeDLQ(payload *SubscriberPayload) {
+	_, dlqTopic := QueueNames(payload.Topic)
+	r := kafka.NewReader(kafka.ReaderConfig{
+		Brokers:  []string{"localhost:29092"},
+		Topic:    dlqTopic,
+		GroupID:  "dlq-inspector",
+		MaxBytes: 10e6,
+	})
+	defer r.Close()
+
+	fmt.Printf("Reading from DLQ: %s\n", dlqTopic)
+	for {
+		m, err := r.ReadMessage(context.Background())
+		if err != nil {
+			log.Printf("DLQ read error: %v", err)
+			break
+		}
+		fmt.Printf("[DLQ] offset %d | key: %s | value: %s | headers: %v\n",
+			m.Offset, string(m.Key), string(m.Value), m.Headers)
+	}
+}
