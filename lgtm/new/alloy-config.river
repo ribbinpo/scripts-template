@@ -1,0 +1,79 @@
+// Logging
+loki.write "default" {
+  endpoint {
+    url = "http://lgtm-loki:3100/loki/api/v1/push"
+  }
+}
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+
+  // keep only service-a and service-b
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(service-a|service-b)"
+    action        = "keep"
+  }
+
+  // extract container name as label
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+}
+
+loki.source.docker "containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.containers.output
+  labels     = {"platform" = "docker"}
+  forward_to = [loki.process.parse.receiver]
+}
+
+loki.process "parse" {
+  // only keep JSON log lines, drop plain text (GIN debug, etc.)
+  stage.match {
+    selector      = "{platform=\"docker\"} |~ \"^[^{]\""
+    pipeline_name = "drop_non_json"
+    action        = "drop"
+  }
+
+  stage.json {
+    expressions = {
+      level       = "level",
+      service     = "service",
+      request_id  = "request_id",
+      trace_id    = "trace_id",
+    }
+  }
+  // service, label, env, container, job
+  stage.labels {
+    values = {
+      level = "",
+      service = "",
+      job = "",
+      env     = "dev",
+    }
+  }
+  forward_to = [loki.write.default.receiver]
+}
+
+// loki.process "filter" {                                                               
+//   stage.drop {                                                                      
+//     source = "container"                                                              
+//     expression = "loki|grafana|tempo|alloy|prometheus|redis|postgres"               
+//   }  
+//   forward_to = [loki.write.default.receiver]
+// }
+
+// loki.process "keep_errors" {
+//  stage.match {
+//    selector = "{level=\"error\"}"
+//    action   = "keep"
+//  }
+//  forward_to = [loki.write.default.receiver]
+//}

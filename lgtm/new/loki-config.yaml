@@ -1,0 +1,80 @@
+# false -> dev / internal
+# true -> multi-tenant / secured
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9095
+  grpc_server_max_concurrent_streams: 1000
+  log_level: debug
+
+common:
+  # Using distribute data
+  ring:
+    instance_addr: 127.0.0.1
+    kvstore:
+      store: inmemory # it mean no cluster
+  replication_factor: 1
+  path_prefix: /loki
+
+limits_config:
+  # Rate limits (global is the default)
+  ingestion_rate_strategy: global
+  ingestion_rate_mb: 10
+  ingestion_burst_size_mb: 20
+  # Rate limiter per log stream
+  per_stream_rate_limit: 3MB
+  per_stream_rate_limit_burst: 15MB
+
+  # Stream limits (0 is unlimited) - number of unique label combinations
+  # e.g. `{service="order", level="info"}, {service="order", level="error"}` is 2 streams
+  max_global_streams_per_user: 10000
+  max_streams_per_user: 10000
+
+  # Validation
+  # max size per log line
+  max_line_size: 256KB
+  max_line_size_truncate: false
+  # protect memory usage
+  max_label_name_length: 128
+  max_label_value_length: 512
+  # number of label per streams
+  max_label_names_per_series: 15
+
+  # Time constraints
+  # reject logs older than 7 days
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h # 7 days
+  # allow slightly late logs
+  creation_grace_period: 10m
+  # allow logs out of order
+  unordered_writes: true # false in production
+  # logs older than 7 days are deleted
+  retention_period: 168h # 7 days
+
+schema_config:
+  configs:
+    - from: 2026-03-28
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+# Storage configuration: Logs → grouped → compressed → stored as chunks
+storage_config:
+  # actual log data (compressed chunks)
+  filesystem:
+    directory: /loki/chunks
+  # index management
+  tsdb_shipper:
+    active_index_directory: /loki/index
+    cache_location: /loki/index_cache
+    cache_ttl: 24h
+
+# Compactor: Periodically merges and compacts chunks to optimize storage
+# Small chunks → merged → optimized
+# Old data → deleted (retention)
+compactor:
+  working_directory: /loki/compactor

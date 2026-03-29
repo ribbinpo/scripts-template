@@ -1,0 +1,30 @@
+
+// TEMPO
+
+otelcol.receiver.otlp "default" {
+  protocols {
+    http {}
+    grpc {}
+  }
+}
+
+otelcol.exporter.otlp "tempo" {
+  client {
+    endpoint = "tempo:4317"
+    tls {
+      insecure = true
+    }
+  }
+}
+
+otelcol.processor.batch "default" {}
+
+otelcol.service "default" {
+  pipelines {
+    traces = [
+      otelcol.receiver.otlp.default.receiver,
+      otelcol.processor.batch.default.processor,
+      otelcol.exporter.otlp.tempo.exporter,
+    ]
+  }
+}

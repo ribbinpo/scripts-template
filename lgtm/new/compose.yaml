@@ -1,0 +1,63 @@
+services:
+  grafana:
+    image: grafana/grafana:latest
+    container_name: lgtm-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_BASIC_ENABLED=false
+      - GF_LOG_LEVEL=debug
+    depends_on:
+      - loki
+  loki:
+    image: grafana/loki:3.6.1
+    container_name: lgtm-loki
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/loki.yaml
+    volumes:
+      - ./loki-config.yaml:/etc/loki/loki.yaml
+      - ./loki-data:/loki
+  tempo:
+    image: grafana/tempo:latest
+    container_name: tempo
+    ports:
+      - "3200:3200"
+  alloy:
+    image: grafana/alloy:latest
+    container_name: lgtm-alloy
+    user: root
+    ports:
+      - "12345:12345"
+    volumes:
+      - ./alloy-config.river:/etc/alloy/config.river
+      - /var/run/docker.sock:/var/run/docker.sock
+    command:
+      - run
+      - /etc/alloy/config.river
+      - --server.http.listen-addr=0.0.0.0:12345
+    depends_on:
+      - loki
+  service-a:
+    build:
+      context: ./client
+      dockerfile: service-a/Dockerfile
+    container_name: service-a
+    ports:
+      - "4000:4000"
+    depends_on:
+      - service-b
+
+  service-b:
+    build:
+      context: ./client
+      dockerfile: service-b/Dockerfile
+    container_name: service-b
+    ports:
+      - "4001:4001"
+
+networks:
+  default:
+    name: lgtm
