@@ -11,8 +11,12 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	metricapi "go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/propagation"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.37.0"
@@ -29,11 +33,82 @@ type PingPongResp struct {
 	Message string `json:"message"`
 }
 
+type HTTPMetrics struct {
+	requestCounter metricapi.Int64Counter
+	latencyMs      metricapi.Float64Histogram
+}
+
+func InitMetric() (func(context.Context) error, *HTTPMetrics) {
+	ctx := context.Background()
+
+	exp, err := otlpmetrichttp.New(ctx,
+		otlpmetrichttp.WithEndpoint("alloy:4318"),
+		otlpmetrichttp.WithInsecure(),
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	provider := sdkmetric.NewMeterProvider(
+		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(exp)),
+		sdkmetric.WithResource(resource.NewWithAttributes(
+			semconv.SchemaURL,
+			semconv.ServiceName("service-b"),
+			semconv.DeploymentEnvironmentName("dev"),
+		)),
+	)
+
+	otel.SetMeterProvider(provider)
+	meter := provider.Meter("service-b")
+
+	requestCounter, err := meter.Int64Counter(
+		"http.server.request.count",
+		metricapi.WithDescription("Total HTTP requests handled by service-b"),
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+	latencyMs, err := meter.Float64Histogram(
+		"http.server.request.duration.ms",
+		metricapi.WithDescription("HTTP request duration in milliseconds for service-b"),
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return provider.Shutdown, &HTTPMetrics{
+		requestCounter: requestCounter,
+		latencyMs:      latencyMs,
+	}
+}
+
+func MetricsMiddleware(metrics *HTTPMetrics) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		start := time.Now()
+		c.Next()
+
+		attrs := []attribute.KeyValue{
+			attribute.String("service.name", "service-b"),
+			attribute.String("http.method", c.Request.Method),
+			attribute.String("http.route", c.FullPath()),
+			attribute.Int("http.status_code", c.Writer.Status()),
+		}
+
+		ctx := c.Request.Context()
+		metrics.requestCounter.Add(ctx, 1, metricapi.WithAttributes(attrs...))
+		metrics.latencyMs.Record(
+			ctx,
+			float64(time.Since(start).Milliseconds()),
+			metricapi.WithAttributes(attrs...),
+		)
+	}
+}
+
 func InitTracer(prop propagation.TextMapPropagator) func(context.Context) error {
 	ctx := context.Background()
 
 	exp, err := otlptracehttp.New(ctx,
-		otlptracehttp.WithEndpoint("lgtm-tempo:4318"),
+		otlptracehttp.WithEndpoint("tempo:4318"),
 		otlptracehttp.WithInsecure(),
 	)
 	if err != nil {
@@ -115,6 +190,9 @@ func main() {
 		Timeout: 5 * time.Second,
 	}
 
+	shutdownMetric, httpMetrics := InitMetric()
+	defer shutdownMetric(context.Background())
+
 	prop := propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{},
 		propagation.Baggage{},
@@ -124,6 +202,7 @@ func main() {
 	defer shutdown(context.Background())
 
 	router.Use(otelgin.Middleware("service-b", otelgin.WithPropagators(prop)))
+	router.Use(MetricsMiddleware(httpMetrics))
 
 	cfg := zap.NewProductionConfig()
 

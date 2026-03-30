@@ -1,7 +1,7 @@
 // Logging
 loki.write "default" {
   endpoint {
-    url = "http://lgtm-loki:3100/loki/api/v1/push"
+    url = "http://loki:3100/loki/api/v1/push"
   }
 }
 
@@ -77,3 +77,30 @@ loki.process "parse" {
 //  }
 //  forward_to = [loki.write.default.receiver]
 //}
+
+// --- Metric
+otelcol.receiver.otlp "default" {
+  http {}
+  grpc {}
+
+  output {
+    metrics = [otelcol.processor.batch.metrics.input]
+  }
+}
+
+otelcol.processor.batch "metrics" {
+  output {
+    metrics = [otelcol.exporter.prometheus.default.input]
+  }
+}
+
+otelcol.exporter.prometheus "default" {
+  forward_to = [prometheus.remote_write.default.receiver]
+}
+
+prometheus.remote_write "default" {
+  endpoint {
+    url = "http://prometheus:9090/api/v1/write"
+  }
+}
+

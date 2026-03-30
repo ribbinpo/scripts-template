@@ -11,6 +11,18 @@ services:
       - GF_LOG_LEVEL=debug
     depends_on:
       - loki
+      - prometheus
+      - tempo
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: lgtm-prometheus
+    command:
+      - --web.enable-remote-write-receiver
+      - --config.file=/etc/prometheus/prometheus.yaml
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yaml:/etc/prometheus/prometheus.yaml
   loki:
     image: grafana/loki:3.6.1
     container_name: lgtm-loki
