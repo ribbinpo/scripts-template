@@ -21,10 +21,16 @@ services:
       - ./loki-config.yaml:/etc/loki/loki.yaml
       - ./loki-data:/loki
   tempo:
-    image: grafana/tempo:latest
-    container_name: tempo
+    image: grafana/tempo:2.6.1
+    container_name: lgtm-tempo
+    command: -config.file=/etc/tempo/tempo.yaml
     ports:
-      - "3200:3200"
+      - "3200:3200"   # UI/API
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+    volumes:
+      - ./tempo-config.yaml:/etc/tempo/tempo.yaml
+      - ./tempo-data:/tmp/tempo
   alloy:
     image: grafana/alloy:latest
     container_name: lgtm-alloy

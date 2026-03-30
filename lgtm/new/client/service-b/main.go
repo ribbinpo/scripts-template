@@ -3,17 +3,56 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.37.0"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
+type ctxKey int
+
+const requestIDKey ctxKey = iota
+
 type PingPongResp struct {
 	Message string `json:"message"`
+}
+
+func InitTracer(prop propagation.TextMapPropagator) func(context.Context) error {
+	ctx := context.Background()
+
+	exp, err := otlptracehttp.New(ctx,
+		otlptracehttp.WithEndpoint("lgtm-tempo:4318"),
+		otlptracehttp.WithInsecure(),
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(exp),
+		sdktrace.WithResource(resource.NewWithAttributes(
+			semconv.SchemaURL,
+			semconv.ServiceName("service-b"),
+			semconv.DeploymentEnvironmentName("dev"),
+		)),
+	)
+
+	otel.SetTracerProvider(tp)
+	otel.SetTextMapPropagator(prop)
+
+	return tp.Shutdown
 }
 
 func LoggerMiddleware(logger *zap.Logger) gin.HandlerFunc {
@@ -30,7 +69,7 @@ func LoggerMiddleware(logger *zap.Logger) gin.HandlerFunc {
 		c.Writer.Header().Set("x-request-id", requestId)
 
 		// store in context
-		ctx := context.WithValue(c.Request.Context(), "request_id", requestId)
+		ctx := context.WithValue(c.Request.Context(), requestIDKey, requestId)
 		c.Request = c.Request.WithContext(ctx)
 
 		// ----- process request -----
@@ -50,10 +89,15 @@ func LoggerMiddleware(logger *zap.Logger) gin.HandlerFunc {
 			zap.String("client_ip", c.ClientIP()),
 		}
 
-		fields = append(fields,
-			zap.String("trace_id", ""),
-			zap.String("span_id", ""),
-		)
+		span := trace.SpanFromContext(c.Request.Context())
+		sc := span.SpanContext()
+
+		if sc.IsValid() {
+			fields = append(fields,
+				zap.String("trace_id", sc.TraceID().String()),
+				zap.String("span_id", sc.SpanID().String()),
+			)
+		}
 
 		// ----- error handling -----
 		if len(c.Errors) > 0 {
@@ -70,6 +114,16 @@ func main() {
 	client := &http.Client{
 		Timeout: 5 * time.Second,
 	}
+
+	prop := propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	)
+
+	shutdown := InitTracer(prop)
+	defer shutdown(context.Background())
+
+	router.Use(otelgin.Middleware("service-b", otelgin.WithPropagators(prop)))
 
 	cfg := zap.NewProductionConfig()
 
@@ -90,7 +144,7 @@ func main() {
 	})
 
 	router.GET("/ping-service-a", func(c *gin.Context) {
-		req, err := http.NewRequest("GET", "http://service-a:4000/ping", nil)
+		req, err := http.NewRequestWithContext(c.Request.Context(), "GET", "http://service-a:4000/ping", nil)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"message": "error creating request",
@@ -98,6 +152,7 @@ func main() {
 			return
 		}
 		req.Header.Set("x-request-id", c.GetHeader("x-request-id"))
+		otel.GetTextMapPropagator().Inject(c.Request.Context(), propagation.HeaderCarrier(req.Header))
 
 		resp, err := client.Do(req)
 		if err != nil {
